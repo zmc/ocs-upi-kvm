@@ -1,0 +1,60 @@
+pipeline {
+  agent { node { label "ocs-ci-kvm && ppc64le" }}
+  environment {
+    FOO = "${env.FOO}"
+    IMAGES_PATH = "/var/lib/libvirt/images2"
+    DATA_DISK_LIST = "sdc1,sdd1,sde1"
+    TF_VAR_rhel_subscription_org = credentials("rhsm-org")
+    TF_VAR_rhel_subscription_activationkey = credentials("rhsm-activationkey")
+    PULL_SECRET = credentials('openshift-pull-secret')
+    OCS_CI_BRANCH = 'master'
+  }
+  stages {
+    stage("Setup") {
+      steps {
+        sh """
+          git submodule update --init
+          cd src/ocs-ci
+          git checkout ${env.OCS_CI_BRANCH}
+          git pull || git reset --hard origin/${env.OCS_CI_BRANCH}
+          python3 -V
+          pip3 install --user virtualenv
+          python3 -m virtualenv venv
+          source ./venv/bin/activate
+          pip3 install -r requirements.txt
+          python3 setup.py develop
+          echo -e "RUN:\n  log_dir: ${env.WORKSPACE}/logs" > ocs-ci-conf.yaml
+        """
+        writeFile file: "${env.WORKSPACE}/src/ocs-ci/data/pull-secret", text: env.PULL_SECRET
+        // Without the below line, create-ocp.sh will bail
+        writeFile file: "${env.WORKSPACE}/pull-secret.txt", text: env.PULL_SECRET
+      }
+    }
+    stage("Deploy OCP") {
+      steps {
+        sh """
+          cd scripts
+          ./create-ocp.sh
+        """
+      }
+    }
+    stage("Deploy OCS") {
+      steps {
+        sh """
+          cd src/ocs-ci
+          source ./venv/bin/activate
+          run-ci -m deployment --deploy --ocsci-conf=ocs-ci-conf.yaml --ocsci-conf=conf/ocsci/production_powervs_upi.yaml --cluster-name=ocs-${env.BUILD_ID} --cluster-path=~/cluster --collect-logs
+        """
+      }
+    }
+    stage("Tests") {
+      steps {
+        sh """
+          cd src/ocs-ci
+          source ./venv/bin/activate
+          run-ci -m acceptance --ocsci-conf=ocs-ci-conf.yaml --cluster-name=ocs-${env.BUILD_ID} --cluster-path=~/cluster --self-contained-html --html=${env.WORKSPACE}/logs/report.html --junit-xml=${env.WORKSPACE}/logs/junit.xml --collect-logs
+        """
+      }
+    }
+  }
+}
