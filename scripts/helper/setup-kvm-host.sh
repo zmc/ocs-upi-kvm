@@ -76,6 +76,7 @@ firewall-cmd --reload
 
 echo -e "[main]\ndns=dnsmasq" | tee /etc/NetworkManager/conf.d/openshift.conf
 echo server=/$CLUSTER_DOMAIN/$CLUSTER_GATEWAY | tee /etc/NetworkManager/dnsmasq.d/openshift.conf
+echo dns-forward-max=300 | tee -a /etc/NetworkManager/dnsmasq.d/openshift.conf
 
 systemctl restart NetworkManager
 systemctl restart firewalld
