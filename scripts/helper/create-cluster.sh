@@ -280,15 +280,21 @@ pushd src/ocp4-upi-kvm
 # This mostly comes down to managing terraform modules.  A different version
 # of the ignition module is required for ocp 4.6.
 
+function apply_patch () {
+	if [ -f "$1" ]; then
+		patch -p1 < $1
+	fi
+}
+
 case "$OCP_VERSION" in
 4.4|4.5)
 	if [ -e $WORKSPACE/ocs-upi-kvm/files/ocp4-upi-kvm.legacy.patch ]; then
-		patch -p1 < $WORKSPACE/ocs-upi-kvm/files/ocp4-upi-kvm.legacy.patch
+		apply_patch $WORKSPACE/ocs-upi-kvm/files/ocp4-upi-kvm.legacy.patch
 	fi
 	;;
 *)
 	if [ -e $WORKSPACE/ocs-upi-kvm/files/ocp4-upi-kvm.patch ]; then
-		patch -p1 < $WORKSPACE/ocs-upi-kvm/files/ocp4-upi-kvm.patch
+		apply_patch $WORKSPACE/ocs-upi-kvm/files/ocp4-upi-kvm.patch
 	fi
 	;;
 esac
